@@ -7,11 +7,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-set(EMLIB_DIR ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/emlib)
-set(COMMON_DIR ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/common)
-set(DEVICE_DIR ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/Device)
-set(RADIO_DIR ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/platform/radio)
-set(BLOBS_DIR ${ZEPHYR_HAL_SILABS_MODULE_DIR/zephyr/blobs})
+set(EMLIB_DIR       ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/emlib)
+set(COMMON_DIR      ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/common)
+set(DEVICE_DIR      ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/Device)
+set(RADIO_DIR       ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/platform/radio)
+set(BLOBS_DIR       ${ZEPHYR_HAL_SILABS_MODULE_DIR}/zephyr/blobs)
+set(BLUETOOTH_DIR   ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/protocol/bluetooth)
 
 # Translate the SoC name and part number into the gecko device and cpu name
 # respectively.
@@ -19,6 +20,10 @@ string(TOUPPER ${CONFIG_SOC_SERIES} SILABS_GECKO_DEVICE)
 
 # Get SoC series number, i.e. translate e.g. efr32bg22 -> 22
 string(SUBSTRING ${CONFIG_SOC_SERIES} 7 2 GECKO_SERIES_NUMBER)
+
+if(${CONFIG_SOC_SERIES} STREQUAL "efr32bg1b")
+    set(GECKO_SERIES_NUMBER "1")
+endif()
 
 set(SILABS_GECKO_PART_NUMBER ${CONFIG_SOC_PART_NUMBER})
 
@@ -41,6 +46,7 @@ if(${CONFIG_SOC_GECKO_HAS_RADIO})
   zephyr_include_directories(
     ${RADIO_DIR}/rail_lib/common
     ${RADIO_DIR}/rail_lib/plugin/pa-conversions
+    ${BLUETOOTH_DIR}/bgstack/ll/inc
   )
 
   if(CONFIG_SOC_GECKO_USE_RAIL)
@@ -49,7 +55,7 @@ if(${CONFIG_SOC_GECKO_HAS_RADIO})
     zephyr_library_sources(${RADIO_DIR}/rail_lib/plugin/pa-conversions/pa_curves_efr32.c)
 
     # prebuilt libs
-    add_prebuilt_library(librail platform/radio/rail_lib/autogen/librail_release/librail_efr32xg${GECKO_SERIES_NUMBER}_gcc_release.a)
+    add_prebuilt_library(librail gecko/platform/radio/rail_lib/autogen/librail_release/librail_efr32xg${GECKO_SERIES_NUMBER}_gcc_release.a)
 
     if(CONFIG_SOC_GECKO_CUSTOM_RADIO_PHY)
       zephyr_include_directories(
@@ -105,6 +111,7 @@ zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFM32WG     ${DEVICE_DIR}/Silicon
 zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFR32BG13P  ${DEVICE_DIR}/SiliconLabs/EFR32BG13P/Source/system_efr32bg13p.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFR32FG1P   ${DEVICE_DIR}/SiliconLabs/EFR32FG1P/Source/system_efr32fg1p.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFR32FG13P  ${DEVICE_DIR}/SiliconLabs/EFR32FG13P/Source/system_efr32fg13p.c)
+zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFR32BG1B   ${DEVICE_DIR}/SiliconLabs/EFR32BG1B/Source/system_efr32bg1b.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFM32HG     ${DEVICE_DIR}/SiliconLabs/EFM32HG/Source/system_efm32hg.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFR32MG12P  ${DEVICE_DIR}/SiliconLabs/EFR32MG12P/Source/system_efr32mg12p.c)
 zephyr_library_sources_ifdef(CONFIG_SOC_SERIES_EFM32PG12B  ${DEVICE_DIR}/SiliconLabs/EFM32PG12B/Source/system_efm32pg12b.c)

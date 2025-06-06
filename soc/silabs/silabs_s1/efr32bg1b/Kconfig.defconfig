@@ -1,0 +1,7 @@
+if SOC_SERIES_EFR32BG1B
+
+config NUM_IRQS
+	# must be >= the highest interrupt number used
+	default 35
+
+endif
