@@ -14,6 +14,7 @@
 #include <zephyr/sys_clock.h>
 #include <zephyr/drivers/timer/system_timer.h>
 #include <zephyr/logging/log.h>
+#include <em_cmu.h>
 
 #include <sl_sleeptimer.h>
 
@@ -124,6 +125,22 @@ static int sleeptimer_init(void)
 	IRQ_CONNECT(DT_IRQ(DT_RTC, irq), DT_IRQ(DT_RTC, priority),
 		    CONCAT(DT_STRING_UPPER_TOKEN_BY_IDX(DT_RTC, interrupt_names, 0), _IRQHandler),
 		    0, 0);
+
+
+#if defined(cmuClock_CORELE)
+	/* Ensure LE modules are clocked. */
+	CMU_ClockEnable(cmuClock_CORELE, true);
+#endif
+
+#if defined(CMU_LFECLKEN0_RTCC)
+	/* Enable LFECLK in CMU (will also enable oscillator if not enabled). */
+	CMU_ClockSelectSet(cmuClock_LFE, cmuSelect_LFXO);
+#elif defined(_SILICON_LABS_32B_SERIES_2)
+	CMU_ClockSelectSet(cmuClock_RTCC, cmuSelect_LFXO);
+#else
+	/* Enable LFACLK in CMU (will also enable oscillator if not enabled). */
+	CMU_ClockSelectSet(cmuClock_LFA, cmuSelect_LFXO);
+#endif
 
 	sl_sleeptimer_init();
 

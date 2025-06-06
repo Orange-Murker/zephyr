@@ -8,6 +8,16 @@ config SOC_FAMILY_SILABS_S1
 	select BUILD_OUTPUT_HEX
 	select SOC_EARLY_INIT_HOOK
 
+configdefault SYS_CLOCK_HW_CYCLES_PER_SEC
+	default $(dt_node_int_prop_int,/cpus/cpu@0,clock-frequency) if CORTEX_M_SYSTICK
+	default 32768
+
+configdefault SYS_CLOCK_TICKS_PER_SEC
+	default 128 if !TICKLESS_KERNEL && SILABS_SLEEPTIMER_TIMER
+
+configdefault CORTEX_M_SYSTICK
+	default n if SILABS_SLEEPTIMER_TIMER
+
 rsource "*/Kconfig"
 
 endif

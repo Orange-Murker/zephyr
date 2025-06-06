@@ -13,6 +13,7 @@ set(DEVICE_DIR      ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/Device)
 set(RADIO_DIR       ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/platform/radio)
 set(BLOBS_DIR       ${ZEPHYR_HAL_SILABS_MODULE_DIR}/zephyr/blobs)
 set(BLUETOOTH_DIR   ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/protocol/bluetooth)
+set(SERVICE_DIR     ${ZEPHYR_HAL_SILABS_MODULE_DIR}/gecko/service)
 
 # Translate the SoC name and part number into the gecko device and cpu name
 # respectively.
@@ -78,8 +79,27 @@ zephyr_include_directories(
   ${DEVICE_DIR}/SiliconLabs/${SILABS_GECKO_DEVICE}/Include
   ${COMMON_DIR}/inc
   ${EMLIB_DIR}/inc
+  ${SERVICE_DIR}/sleeptimer/config
+  ${SERVICE_DIR}/sleeptimer/inc
+  ${SERVICE_DIR}/sleeptimer/src
   ${BOARD_DIR}
 )
+
+# Sleeptimer
+if(CONFIG_SOC_SILABS_SLEEPTIMER)
+  zephyr_library_sources(
+    ${SERVICE_DIR}/sleeptimer/src/peripheral_sysrtc.c
+    ${SERVICE_DIR}/sleeptimer/src/sl_sleeptimer_hal_rtcc.c
+    ${SERVICE_DIR}/sleeptimer/src/sl_sleeptimer_hal_sysrtc.c
+    ${SERVICE_DIR}/sleeptimer/src/sl_sleeptimer.c
+  )
+  zephyr_compile_definitions(
+    SL_CATALOG_SLEEPTIMER_PRESENT
+    SL_CODE_COMPONENT_SLEEPTIMER=sleeptimer
+    SL_CODE_COMPONENT_HAL_SYSRTC=hal_sysrtc
+  )
+endif()
+
 
 # The gecko SDK uses the cpu name to include the matching device header.
 # See Device/SiliconLabs/$(SILABS_GECKO_DEVICE)/Include/em_device.h for an example.
