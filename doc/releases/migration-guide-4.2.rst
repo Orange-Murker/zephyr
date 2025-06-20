@@ -20,6 +20,11 @@ the :ref:`release notes<zephyr_4.2>`.
     :local:
     :depth: 2
 
+Common
+******
+
+* The minimum required Python version is now 3.12 (from 3.10).
+
 Build System
 ************
 
@@ -96,6 +101,14 @@ Devicetree
 * Silicon Labs SoC-level dts files for Series 2 have been reorganized in subdirectories per device
   superfamily. Therefore, any dts files for boards that use Series 2 SoCs will need to change their
   include from ``#include <silabs/some_soc.dtsi>`` to ``#include <silabs/xg2[1-9]/some_soc.dtsi>``.
+
+* The :c:macro:`DT_ENUM_HAS_VALUE` and :c:macro:`DT_INST_ENUM_HAS_VALUE` macros are now
+  checking all values, when used on an array, not just the first one.
+
+* Property names in devicetree and bindings use hyphens(``-``) as separators, and replacing
+  all previously used underscores(``_``). For local code, you can migrate property names in
+  bindings to use hyphens by running the ``scripts/utils/migrate_bindings_style.py`` script.
+
 
 DAI
 ===
@@ -188,6 +201,15 @@ Ethernet
   :c:enumerator:`ETHERNET_LINK_10BASE`, :c:enumerator:`ETHERNET_LINK_100BASE`,
   :c:enumerator:`ETHERNET_LINK_1000BASE`, :c:enumerator:`ETHERNET_LINK_2500BASE` and
   :c:enumerator:`ETHERNET_LINK_5000BASE` respectively (:github:`87194`).
+
+* ``ETHERNET_CONFIG_TYPE_LINK``, ``ETHERNET_CONFIG_TYPE_DUPLEX``, ``ETHERNET_CONFIG_TYPE_AUTO_NEG``
+  and the related ``NET_REQUEST_ETHERNET_SET_LINK``, ``NET_REQUEST_ETHERNET_SET_DUPLEX``,
+  ``NET_REQUEST_ETHERNET_SET_AUTO_NEGOTIATION`` have been removed. :c:func:`phy_configure_link`
+  together with :c:func:`net_eth_get_phy` should be used instead to configure the link
+  (:github:`90652`).
+
+* :c:func:`phy_configure_link` got a ``flags`` parameter. Set it to ``0`` to preserve the old
+  behavior (:github:`91354`).
 
 Enhanced Serial Peripheral Interface (eSPI)
 ===========================================
@@ -465,6 +487,21 @@ Networking
   need to update their response callback implementations. To retain current
   behavior, simply return 0 from the callback.
 
+* The API signature of ``net_mgmt`` event handler :c:type:`net_mgmt_event_handler_t` and
+  request handler :c:type:`net_mgmt_request_handler_t` has changed. The management event
+  type is changed from ``uint32_t`` to ``uint64_t``. The change allows event number values
+  to be bit masks instead of enum values. The layer code still stays as a enum value.
+  The :c:macro:`NET_MGMT_LAYER_CODE` and :c:macro:`NET_MGMT_GET_COMMAND` can be used to get
+  the layer code and management event command from the actual event value in the request or
+  event handlers if needed.
+
+* The socket options for ``net_mgmt`` type sockets cannot directly be network management
+  event types as those are now ``uint64_t`` and the socket option expects a normal 32 bit
+  integer value. Because of this, a new ``SO_NET_MGMT_ETHERNET_SET_QAV_PARAM``
+  and ``SO_NET_MGMT_ETHERNET_GET_QAV_PARAM`` socket options are created that will replace
+  the previously used ``NET_REQUEST_ETHERNET_GET_QAV_PARAM`` and
+  ``NET_REQUEST_ETHERNET_GET_QAV_PARAM`` options.
+
 OpenThread
 ==========
 
@@ -565,6 +602,9 @@ OpenThread
 SPI
 ===
 
+* Renamed ``CONFIG_SPI_MCUX_LPSPI`` to :kconfig:option:`CONFIG_SPI_NXP_LPSPI`,
+  and similar for any child configs for that driver, including
+  :kconfig:option:`CONFIG_SPI_NXP_LPSPI_DMA` and :kconfig:option:`CONFIG_SPI_NXP_LPSPI_CPU`.
 * Renamed the device tree property ``port_sel`` to ``port-sel``.
 * Renamed the device tree property ``chip_select`` to ``chip-select``.
 * The binding file for :dtcompatible:`andestech,atcspi200` has been renamed to have a name
@@ -623,6 +663,17 @@ hawkBit
 * When :kconfig:option:`CONFIG_HAWKBIT_CUSTOM_DEVICE_ID` is enabled, device_id will no longer
   be prepended with :kconfig:option:`CONFIG_BOARD`. It is the user's responsibility to write a
   callback that prepends the board name if needed.
+
+State Machine Framework
+=======================
+
+* :c:func:`smf_set_handled` has been removed.
+* State run actions now return an :c:enum:`smf_state_result` value instead of void. and the return
+  code determines if the event is propagated to parent run actions or has been handled. A run action
+  that handles the event completely should return :c:enum:`SMF_EVENT_HANDLED`, and run actions that
+  propagate handling to parent states should return :c:enum:`SMF_EVENT_PROPAGATE`.
+* Flat state machines ignore the return value; returning :c:enum:`SMF_EVENT_HANDLED`
+  would be the most technically accurate response.
 
 Modules
 *******
