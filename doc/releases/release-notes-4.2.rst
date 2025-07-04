@@ -47,8 +47,8 @@ The following CVEs are addressed by this release:
   <https://mbed-tls.readthedocs.io/en/latest/security-advisories/mbedtls-security-advisory-2025-03-1/>`_
 * :cve:`2025-27810` `Potential authentication bypass in TLS handshake
   <https://mbed-tls.readthedocs.io/en/latest/security-advisories/mbedtls-security-advisory-2025-03-2/>`_
-
-* :cve:`2025-2962` Under embargo until 2025-06-07
+* :cve:`2025-2962` `Infinite loop in dns_copy_qname
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-2qp5-c2vq-g2ww>`_
 
 More detailed information can be found in:
 https://docs.zephyrproject.org/latest/security/vulnerabilities.html
@@ -111,6 +111,11 @@ Deprecated APIs and options
   was deprecated since Zephyr 4.0, and users were advised to migrate to alternative
   crypto backends.
 
+* The :kconfig:option:`CONFIG_BT_MESH_USES_TINYCRYPT` Kconfig option has been removed. It
+  was deprecated since Zephyr 4.0. Users were advised to use
+  :kconfig:option:`CONFIG_BT_MESH_USES_MBEDTLS_PSA` or
+  :kconfig:option:`CONFIG_BT_MESH_USES_TFM_PSA` instead.
+
 Stable API changes in this release
 ==================================
 
@@ -144,6 +149,13 @@ New APIs and options
 * I2C
 
   * :c:func:`i2c_configure_dt`.
+  * :c:macro:`I2C_DEVICE_DT_DEINIT_DEFINE`
+  * :c:macro:`I2C_DEVICE_DT_INST_DEINIT_DEFINE`
+
+* SPI
+
+  * :c:macro:`SPI_DEVICE_DT_DEINIT_DEFINE`
+  * :c:macro:`SPI_DEVICE_DT_INST_DEINIT_DEFINE`
 
 ..
   Link to new APIs here, in a group if you think it's necessary, no need to get
@@ -204,6 +216,7 @@ New APIs and options
 
     * :kconfig:option:`CONFIG_WIFI_USAGE_MODE`
     * Added a new section to the Wi-Fi Management documentation (``doc/connectivity/networking/api/wifi.rst``) with step-by-step instructions for generating test certificates for Wi-Fi using FreeRADIUS scripts. This helps users reproduce the process for their own test environments.
+    * Changed the hostap IPC mechanism from socketpair to k_fifo. Depending on the enabled Wi-Fi configuration options, this can save up to 6-8 kB memory when using native Wi-Fi stack.
 
 * Power management
 
@@ -254,6 +267,9 @@ New APIs and options
 
   * :c:func:`util_eq`
   * :c:func:`util_memeq`
+  * :c:func:`sys_clock_gettime`
+  * :c:func:`sys_clock_settime`
+  * :c:func:`sys_clock_nanosleep`
 
 * LoRaWAN
    * :c:func:`lorawan_request_link_check`
@@ -263,6 +279,7 @@ New APIs and options
   * :c:func:`video_api_ctrl_t`
   * :c:func:`video_query_ctrl`
   * :c:func:`video_print_ctrl`
+  * :ref:`video-sw-generator <snippet-video-sw-generator>`
 
 * PCIe
 
@@ -275,6 +292,10 @@ New APIs and options
     * :kconfig:option:`CONFIG_DEBUG_COREDUMP_THREAD_STACK_TOP`, enabled by default for ARM Cortex M when :kconfig:option:`CONFIG_DEBUG_COREDUMP_MEMORY_DUMP_MIN` is selected.
     * :kconfig:option:`CONFIG_DEBUG_COREDUMP_BACKEND_IN_MEMORY`
     * :kconfig:option:`CONFIG_DEBUG_COREDUMP_BACKEND_IN_MEMORY_SIZE`
+
+* UpdateHub
+
+  * :c:func:`updatehub_report_error`
 
 * Other
 
@@ -514,6 +535,14 @@ New Boards
 * Würth Elektronik GmbH.
 
    * :zephyr:board:`ophelia4ev` (``ophelia4ev``)
+
+.. _shields_added_in_zephyr_4_2:
+
+New shields
+============
+
+ * :ref:`MikroElektronika Stepper 18 Click <mikroe_stepper_18_click_shield>`
+ * :ref:`MikroElektronika Stepper 19 Click <mikroe_stepper_19_click_shield>`
 
 New Drivers
 ***********
@@ -903,6 +932,7 @@ New Drivers
 
 * Stepper
 
+   * :dtcompatible:`allegro,a4979`
    * :dtcompatible:`adi,tmc51xx`
 
 * System controller
@@ -1019,3 +1049,9 @@ Other notable changes
 
 * Updated TF-M to version 2.1.2 (from 2.1.1). The release notes can be found at:
   https://trustedfirmware-m.readthedocs.io/en/tf-mv2.1.2/releases/2.1.2.html
+
+* Updated all boards with an external I2C connectors (Qwiic, Stemma, Grove...)
+  to use the ``zephyr_i2c`` devicetree label. This allows using the existing
+  :ref:`shields` build system feature (``west build --shield``) to interface
+  any connectorized i2c module to any board with a compatible i2c port,
+  regardless of the specific i2c connector branding.
