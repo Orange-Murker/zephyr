@@ -12,6 +12,3 @@ config SOC_SERIES_EFR32BG1B
 	select SOC_GECKO_GPIO
 	select SOC_GECKO_RTCC
 	select HAS_PM
-
-config SOC_GECKO_SDID
-	default 80 if SOC_SERIES_EFR32BG1B
