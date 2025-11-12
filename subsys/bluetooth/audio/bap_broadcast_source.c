@@ -85,9 +85,9 @@ static void broadcast_source_set_ep_state(struct bt_bap_ep *ep, uint8_t state)
 {
 	uint8_t old_state;
 
-	old_state = ep->status.state;
+	old_state = ep->state;
 
-	LOG_DBG("ep %p id 0x%02x %s -> %s", ep, ep->status.id, bt_bap_ep_state_str(old_state),
+	LOG_DBG("ep %p id 0x%02x %s -> %s", ep, ep->id, bt_bap_ep_state_str(old_state),
 		bt_bap_ep_state_str(state));
 
 	switch (old_state) {
@@ -121,7 +121,7 @@ static void broadcast_source_set_ep_state(struct bt_bap_ep *ep, uint8_t state)
 		return;
 	}
 
-	ep->status.state = state;
+	ep->state = state;
 }
 
 static void broadcast_source_set_state(struct bt_bap_broadcast_source *source, uint8_t state)
@@ -244,10 +244,10 @@ static struct bt_iso_chan_ops broadcast_source_iso_ops = {
 	.disconnected = broadcast_source_iso_disconnected,
 };
 
-bool bt_bap_ep_is_broadcast_src(const struct bt_bap_ep *ep)
+bool bt_bap_broadcast_source_has_ep(const struct bt_bap_ep *ep)
 {
 	for (int i = 0; i < ARRAY_SIZE(broadcast_source_eps); i++) {
-		if (PART_OF_ARRAY(broadcast_source_eps[i], ep)) {
+		if (IS_ARRAY_ELEMENT(broadcast_source_eps[i], ep)) {
 			return true;
 		}
 	}
@@ -314,6 +314,7 @@ static int broadcast_source_setup_stream(uint8_t index, struct bt_bap_stream *st
 
 	bt_bap_iso_init(iso, &broadcast_source_iso_ops);
 	bt_bap_iso_bind_ep(iso, ep);
+	stream->iso = &iso->chan;
 
 	bt_bap_qos_cfg_to_iso_qos(iso->chan.qos->tx, qos);
 
@@ -460,6 +461,7 @@ static void broadcast_source_cleanup(struct bt_bap_broadcast_source *source)
 
 		SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&subgroup->streams, stream, next_stream, _node) {
 			bt_bap_iso_unbind_ep(stream->ep->iso, stream->ep);
+			stream->iso = NULL;
 			stream->ep->stream = NULL;
 			stream->ep->broadcast_source = NULL;
 			stream->ep = NULL;
@@ -615,7 +617,7 @@ static enum bt_bap_ep_state broadcast_source_get_state(struct bt_bap_broadcast_s
 
 		SYS_SLIST_FOR_EACH_CONTAINER(&subgroup->streams, stream, _node) {
 			if (stream->ep != NULL) {
-				state = MAX(state, stream->ep->status.state);
+				state = MAX(state, stream->ep->state);
 			}
 		}
 	}
@@ -1277,6 +1279,37 @@ int bt_bap_broadcast_source_unregister_cb(struct bt_bap_broadcast_source_cb *cb)
 		LOG_DBG("cb %p is not registered", cb);
 
 		return -ENOENT;
+	}
+
+	return 0;
+}
+
+int bt_bap_broadcast_source_foreach_stream(struct bt_bap_broadcast_source *source,
+					   bt_bap_broadcast_source_foreach_stream_func_t func,
+					   void *user_data)
+{
+	struct bt_bap_broadcast_subgroup *subgroup, *next_subgroup;
+
+	if (source == NULL) {
+		LOG_DBG("source is NULL");
+		return -EINVAL;
+	}
+
+	if (func == NULL) {
+		LOG_DBG("func is NULL");
+		return -EINVAL;
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&source->subgroups, subgroup, next_subgroup, _node) {
+		struct bt_bap_stream *stream, *next_stream;
+
+		SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&subgroup->streams, stream, next_stream, _node) {
+			const bool stop = func(stream, user_data);
+
+			if (stop) {
+				return -ECANCELED;
+			}
+		}
 	}
 
 	return 0;

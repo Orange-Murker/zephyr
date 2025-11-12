@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// This file implements the Infineon AN304 SPI Guide for F-RAM
+/* This file implements the Infineon AN304 SPI Guide for F-RAM */
 
 #include "zephyr/devicetree.h"
 #include "zephyr/kernel.h"
@@ -19,7 +19,7 @@
 
 LOG_MODULE_REGISTER(fm25xxx, CONFIG_EEPROM_LOG_LEVEL);
 
-// Registers
+/* Registers */
 #define FM25XXX_WREN  0x06
 #define FM25XXX_WRDI  0x04
 #define FM25XXX_RDSR  0x05
@@ -34,7 +34,7 @@ struct fm25xxx_config {
 };
 
 struct fm25xxx_data {
-	struct k_mutex lock;
+	struct k_sem lock;
 };
 
 static uint8_t eeprom_fm25xxx_size_to_addr_bytes(size_t size)
@@ -51,13 +51,7 @@ static uint8_t eeprom_fm25xxx_size_to_addr_bytes(size_t size)
 static int eeprom_fm25xxx_set_enable_write(const struct device *dev, bool enable_writes)
 {
 	const struct fm25xxx_config *config = dev->config;
-
-	uint8_t op;
-	if (enable_writes) {
-		op = FM25XXX_WREN;
-	} else {
-		op = FM25XXX_WRDI;
-	}
+	uint8_t op = enable_writes ? FM25XXX_WREN : FM25XXX_WRDI;
 
 	const struct spi_buf tx_bufs[] = {{
 		.buf = &op,
@@ -68,7 +62,12 @@ static int eeprom_fm25xxx_set_enable_write(const struct device *dev, bool enable
 		.count = ARRAY_SIZE(tx_bufs),
 	};
 
-	spi_write_dt(&config->spi, &tx_buf_set);
+	int ret = spi_write_dt(&config->spi, &tx_buf_set);
+
+	if (ret != 0) {
+		LOG_ERR("Failed to %s writes", enable_writes ? "enable" : "disable");
+		return ret;
+	}
 
 	return 0;
 }
@@ -77,7 +76,6 @@ int eeprom_fm25xxx_read(const struct device *dev, off_t offset, void *data, size
 {
 	int ret;
 	const struct fm25xxx_config *config = dev->config;
-	struct fm25xxx_data *dev_data = dev->data;
 
 	if (offset + len > config->size) {
 		LOG_ERR("Can not read more data than the device size");
@@ -89,12 +87,14 @@ int eeprom_fm25xxx_read(const struct device *dev, off_t offset, void *data, size
 	}
 
 	uint8_t read_op[4] = {FM25XXX_READ};
+	off_t last_offset_bit = (offset >> 8) & 0x01;
 
 	size_t addr_bytes = eeprom_fm25xxx_size_to_addr_bytes(config->size);
 	size_t op_len = 1 + addr_bytes;
 
 	switch (addr_bytes) {
 	case 1:
+		read_op[0] |= (last_offset_bit << 3);
 		read_op[1] = offset & 0xff;
 		break;
 	case 2:
@@ -103,9 +103,12 @@ int eeprom_fm25xxx_read(const struct device *dev, off_t offset, void *data, size
 	case 3:
 		sys_put_be24(offset, &read_op[1]);
 		break;
+	default:
+		LOG_ERR("Invalid number of address bytes %zu", addr_bytes);
+		return -EINVAL;
 	}
 
-	LOG_HEXDUMP_WRN(read_op, 4, "Read op");
+	LOG_HEXDUMP_DBG(read_op, 4, "Read op");
 
 	const struct spi_buf tx_bufs[] = {{
 		.buf = &read_op,
@@ -131,11 +134,7 @@ int eeprom_fm25xxx_read(const struct device *dev, off_t offset, void *data, size
 		.count = ARRAY_SIZE(rx_bufs),
 	};
 
-	k_mutex_lock(&dev_data->lock, K_FOREVER);
-
 	ret = spi_transceive_dt(&config->spi, &tx_buf_set, &rx_buf_set);
-
-	k_mutex_unlock(&dev_data->lock);
 
 	if (ret != 0) {
 		LOG_ERR("Failed to read from FRAM");
@@ -166,12 +165,14 @@ int eeprom_fm25xxx_write(const struct device *dev, off_t offset, const void *dat
 	}
 
 	uint8_t write_op[4] = {FM25XXX_WRITE};
+	off_t last_offset_bit = (offset >> 8) & 0x01;
 
 	size_t addr_bytes = eeprom_fm25xxx_size_to_addr_bytes(config->size);
 	size_t op_len = 1 + addr_bytes;
 
 	switch (addr_bytes) {
 	case 1:
+		write_op[0] |= (last_offset_bit << 3);
 		write_op[1] = offset & 0xff;
 		break;
 	case 2:
@@ -180,7 +181,12 @@ int eeprom_fm25xxx_write(const struct device *dev, off_t offset, const void *dat
 	case 3:
 		sys_put_be24(offset, &write_op[1]);
 		break;
+	default:
+		LOG_ERR("Invalid number of address bytes %zu", addr_bytes);
+		return -EINVAL;
 	}
+
+	LOG_HEXDUMP_DBG(write_op, 4, "Write op");
 
 	const struct spi_buf tx_bufs[] = {
 		{
@@ -197,28 +203,30 @@ int eeprom_fm25xxx_write(const struct device *dev, off_t offset, const void *dat
 		.count = ARRAY_SIZE(tx_bufs),
 	};
 
-	k_mutex_lock(&dev_data->lock, K_FOREVER);
+	k_sem_take(&dev_data->lock, K_FOREVER);
 
 	ret = eeprom_fm25xxx_set_enable_write(dev, true);
 	if (ret != 0) {
-		k_mutex_unlock(&dev_data->lock);
+		k_sem_give(&dev_data->lock);
 		LOG_ERR("Could not enable writes");
 		return ret;
 	}
 
 	ret = spi_write_dt(&config->spi, &tx_buf_set);
 	if (ret != 0) {
-		k_mutex_unlock(&dev_data->lock);
+		k_sem_give(&dev_data->lock);
 		LOG_ERR("Failed to write to FRAM");
 		return ret;
 	}
 
 	ret = eeprom_fm25xxx_set_enable_write(dev, false);
 	if (ret != 0) {
-		k_mutex_unlock(&dev_data->lock);
+		k_sem_give(&dev_data->lock);
 		LOG_ERR("Could not disable writes");
 		return ret;
 	}
+
+	k_sem_give(&dev_data->lock);
 
 	return 0;
 }
@@ -235,11 +243,11 @@ static int eeprom_fm25xxx_init(const struct device *dev)
 	const struct fm25xxx_config *config = dev->config;
 	struct fm25xxx_data *data = dev->data;
 
-	k_mutex_init(&data->lock);
+	k_sem_init(&data->lock, 1, 1);
 
 	if (!spi_is_ready_dt(&config->spi)) {
 		LOG_ERR("SPI bus not ready");
-		return -EINVAL;
+		return -ENODEV;
 	}
 
 	return 0;
@@ -254,7 +262,7 @@ static DEVICE_API(eeprom, eeprom_fm25xxx_api) = {
 #define FM25XXX_INIT(inst)                                                                         \
 	static struct fm25xxx_data fm25xxx_data_##inst;                                            \
 	static const struct fm25xxx_config fm25xxx_config_##inst = {                               \
-		.spi = SPI_DT_SPEC_INST_GET(inst, SPI_OP_MODE_MASTER | SPI_WORD_SET(8), 0),        \
+		.spi = SPI_DT_SPEC_INST_GET(inst, SPI_OP_MODE_MASTER | SPI_WORD_SET(8)),           \
 		.size = DT_INST_PROP(inst, size),                                                  \
 		.readonly = DT_INST_PROP(inst, read_only),                                         \
 	};                                                                                         \

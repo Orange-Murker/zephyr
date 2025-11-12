@@ -9,6 +9,12 @@ supported:
   - uart
   - gpio
   - pwm
+  - adc
+  - i2c
+  - spi
+  - counter
+  - dma
+  - watchdog
 testing:
   ignore_tags:
     - bluetooth

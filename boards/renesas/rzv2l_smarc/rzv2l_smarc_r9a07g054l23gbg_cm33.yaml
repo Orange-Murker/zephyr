@@ -9,4 +9,10 @@ supported:
   - uart
   - gpio
   - pwm
+  - adc
+  - i2c
+  - spi
+  - counter
+  - mbox
+  - dma
 vendor: renesas
